@@ -71,14 +71,50 @@ export async function findOne(col,where){if(DEMO_MODE)return (demo[col]||[]).fin
 export async function insert(col,entry){const item={id:newId(),...entry};if(DEMO_MODE){demo[col].push(item);persist();}else await db.collection(col).insertOne(item);return item;}
 export async function update(col,where,values){if(DEMO_MODE){const item=await findOne(col,where);if(!item)return null;Object.assign(item,values);persist();return item;}const result=await db.collection(col).findOneAndUpdate(mongoWhere(col,where),{$set:values},{returnDocument:'after'});return normalize(result);}
 export async function remove(col,where){if(DEMO_MODE){const idx=demo[col].findIndex(x=>Object.entries(where).every(([k,v])=>x[k]===v));if(idx<0)return false;demo[col].splice(idx,1);persist();return true;}const res=await db.collection(col).deleteOne(mongoWhere(col,where));return res.deletedCount>0;}
-export async function publicTuitions(query){
- const {search='',subject='',classLevel='',mode='',page='1',limit='9'}=query;
- const pageNum=Math.max(1,Number(page)||1), pageSize=Math.min(24,Math.max(1,Number(limit)||9));
- if(DEMO_MODE){let rows=demo.tuitions.filter(x=>x.approvalStatus==='approved'&&x.isActive);if(search) rows=rows.filter(x=>(x.title+' '+x.subject).toLowerCase().includes(String(search).toLowerCase()));if(subject && subject!=='All subjects')rows=rows.filter(x=>x.subject===subject);if(classLevel && classLevel!=='All levels')rows=rows.filter(x=>x.classLevel===classLevel);if(mode&&mode!=='All modes')rows=rows.filter(x=>x.mode===mode);rows.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));return {items:rows.slice((pageNum-1)*pageSize,pageNum*pageSize),total:rows.length,page:pageNum,pages:Math.max(1,Math.ceil(rows.length/pageSize))};}
- const where={approvalStatus:'approved',isActive:true};
- if(search){const escaped=String(search).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); where.$or=[{title:{$regex:escaped,$options:'i'}},{subject:{$regex:escaped,$options:'i'}}];}
- if(subject&&subject!=='All subjects')where.subject=subject;
- if(classLevel&&classLevel!=='All levels')where.classLevel=classLevel;
- if(mode&&mode!=='All modes')where.mode=mode;
- const [total,items]=await Promise.all([db.collection('tuitions').countDocuments(where),db.collection('tuitions').find(where).sort({createdAt:-1}).skip((pageNum-1)*pageSize).limit(pageSize).toArray()]);return {items:items.map(normalize),total,page:pageNum,pages:Math.max(1,Math.ceil(total/pageSize))};
+function queryText(value) {
+ return typeof value === 'string' ? value.trim() : '';
+}
+function positiveInteger(value, fallback) {
+ if (typeof value !== 'string' && typeof value !== 'number') return fallback;
+ const number = Number(value);
+ return Number.isSafeInteger(number) && number > 0 ? number : fallback;
+}
+export async function publicTuitions(query) {
+ const search = queryText(query.search).slice(0, 120);
+ const subject = queryText(query.subject);
+ const classLevel = queryText(query.classLevel);
+ const mode = queryText(query.mode);
+ const requestedPage = positiveInteger(query.page, 1);
+ const pageSize = Math.min(24, positiveInteger(query.limit, 9));
+
+ const where = {approvalStatus: 'approved', isActive: true};
+ if (subject && subject !== 'All subjects') where.subject = subject;
+ if (classLevel && classLevel !== 'All levels') where.classLevel = classLevel;
+ if (mode && mode !== 'All modes') where.mode = mode;
+
+ if (DEMO_MODE) {
+  let rows = demo.tuitions.filter(row =>
+   Object.entries(where).every(([key, value]) => row[key] === value)
+  );
+  if (search) {
+   const needle = search.toLowerCase();
+   rows = rows.filter(row => [row.title, row.subject].some(value => value.toLowerCase().includes(needle)));
+  }
+  rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const total = rows.length;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, pages);
+  return {items: rows.slice((page - 1) * pageSize, page * pageSize), total, page, pages};
+ }
+
+ if (search) {
+  const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  where.$or = [{title: {$regex: escaped, $options: 'i'}}, {subject: {$regex: escaped, $options: 'i'}}];
+ }
+ const collection = db.collection('tuitions');
+ const total = await collection.countDocuments(where);
+ const pages = Math.max(1, Math.ceil(total / pageSize));
+ const page = Math.min(requestedPage, pages);
+ const items = await collection.find(where).sort({createdAt: -1}).skip((page - 1) * pageSize).limit(pageSize).toArray();
+ return {items: items.map(normalize), total, page, pages};
 }
