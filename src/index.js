@@ -1,0 +1,46 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import {rateLimit} from 'express-rate-limit';
+import Stripe from 'stripe';
+import {toNodeHandler} from 'better-auth/node';
+import {connectData,DEMO_MODE} from './data.js';
+import {initAuth,getAuth} from './auth.js';
+import {err} from './shared.js';
+import {registerStripeWebhook,registerPaymentRoutes} from './routes/payments.js';
+import {registerAccountRoutes} from './routes/account.js';
+import {registerPublicRoutes} from './routes/public.js';
+import {registerStudentRoutes} from './routes/students.js';
+import {registerTutorRoutes} from './routes/tutors.js';
+import {registerDashboardRoutes} from './routes/dashboard.js';
+import {registerAdminRoutes} from './routes/admins.js';
+import {registerMediaRoutes} from './routes/media.js';
+
+if(process.env.NODE_ENV==='production'&&DEMO_MODE)throw new Error('Production requires MONGODB_URI. The insecure local demo mode is disabled in production.');
+await connectData();
+initAuth();
+const app=express();
+app.disable('x-powered-by');
+app.set('trust proxy',1);
+const clientOrigin=(process.env.CLIENT_URL||'http://localhost:3000').replace(/\/$/,'');
+app.use(cors({origin:clientOrigin,credentials:true}));
+const stripe=process.env.STRIPE_SECRET_KEY?new Stripe(process.env.STRIPE_SECRET_KEY):null;
+
+// Webhook MUST receive raw body; Better Auth MUST run before express.json().
+registerStripeWebhook(app,stripe);
+if(!DEMO_MODE)app.all('/api/auth/*',toNodeHandler(getAuth()));
+app.use(express.json({limit:'1mb'}));
+app.use('/api/demo',rateLimit({windowMs:15*60*1000,limit:40,standardHeaders:'draft-7',legacyHeaders:false}));
+app.get('/api/health',(_req,res)=>res.json({ok:true,mode:DEMO_MODE?'demo':'mongodb',stripe:!!stripe,media:!!process.env.IMGBB_API_KEY}));
+registerAccountRoutes(app);
+registerPublicRoutes(app);
+registerStudentRoutes(app);
+registerTutorRoutes(app);
+registerDashboardRoutes(app);
+registerAdminRoutes(app);
+registerPaymentRoutes(app,stripe,clientOrigin);
+registerMediaRoutes(app);
+app.use((_req,res)=>err(res,'API route not found.',404));
+app.use((error,req,res,next)=>{console.error(error);if(error?.code==='LIMIT_FILE_SIZE')return err(res,'Image must be smaller than 5MB.',413);res.status(500).json({error:process.env.NODE_ENV==='production'?'Unexpected server error.':error.message||'Unexpected server error.'});});
+const port=Number(process.env.PORT)||5000;
+app.listen(port,()=>console.log('MentorLagbe API listening on http://localhost:'+port));
