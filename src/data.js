@@ -38,12 +38,22 @@ const topics = [
  ['Accounting & Finance Foundations','Accounting','HSC / Class 11–12','Offline','Bashundhara, Dhaka',3600,3,'writing','tutor-2'],
  ['University Admission Math Prep','Mathematics','University / Adult','Online','Bangladesh',5500,4,'class','tutor-1'],
 ];
+const sampleTutorProfiles = {
+ 'tutor-1': {name: 'Farhan Ahmed', image: avatar(12)},
+ 'tutor-2': {name: 'Nusrat Jahan', image: avatar(44)},
+};
+export const sampleTuitionVisuals = topics.map(topic => ({
+ bannerImage: PHOTO[topic[7]],
+ sampleTutorId: topic[8],
+ tutorProfile: sampleTutorProfiles[topic[8]],
+}));
+
 function initialDemo() {
  const hashed = bcrypt.hashSync('Demo12345!', 10);
  const users = [
   {id:'admin-demo',name:'Ayesha Rahman',email:'admin@mentorlagbe.demo',passwordHash:hashed,role:'admin',plan:'pro',image:avatar(47),phone:'01700000000',bio:'Platform administrator',createdAt:new Date().toISOString()},
-  {id:'tutor-1',name:'Farhan Ahmed',email:'farhan@mentorlagbe.demo',passwordHash:hashed,role:'tutor',plan:'pro',image:avatar(12),phone:'01700000001',bio:'Math and science mentor with a passion for making difficult concepts easy.',createdAt:new Date().toISOString()},
-  {id:'tutor-2',name:'Nusrat Jahan',email:'nusrat@mentorlagbe.demo',passwordHash:hashed,role:'tutor',plan:'pro',image:avatar(44),phone:'01700000002',bio:'English language and programming coach.',createdAt:new Date().toISOString()},
+  {id:'tutor-1',...sampleTutorProfiles['tutor-1'],email:'farhan@mentorlagbe.demo',passwordHash:hashed,role:'tutor',plan:'pro',phone:'01700000001',bio:'Math and science mentor with a passion for making difficult concepts easy.',createdAt:new Date().toISOString()},
+  {id:'tutor-2',...sampleTutorProfiles['tutor-2'],email:'nusrat@mentorlagbe.demo',passwordHash:hashed,role:'tutor',plan:'pro',phone:'01700000002',bio:'English language and programming coach.',createdAt:new Date().toISOString()},
   {id:'student-demo',name:'Samiha Islam',email:'student@mentorlagbe.demo',passwordHash:hashed,role:'student',plan:'free',image:avatar(45),phone:'01700000003',bio:'Lifelong learner',createdAt:new Date().toISOString(),savedTuitions:[]}
  ];
  const tuitions = topics.map((t,i)=>({id:`tuition-${i+1}`,title:t[0],subject:t[1],classLevel:t[2],mode:t[3],location:t[4],monthlyFee:t[5],daysPerWeek:t[6],bannerImage:PHOTO[t[7]],description:`Personalized ${t[1].toLowerCase()} sessions designed to build confidence through clear explanations, guided practice, and regular progress reviews. Each session includes custom study materials and practical feedback.`,tutorId:t[8],tutorName:users.find(x=>x.id===t[8]).name,tutorEmail:users.find(x=>x.id===t[8]).email,approvalStatus:'approved',isActive:true,createdAt:new Date(Date.now()-i*86400000).toISOString()}));
