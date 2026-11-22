@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import {z} from 'zod';
 import {DEMO_MODE,findOne,insert,update} from '../data.js';
 import {makeToken,safeUser,verifyToken,tokenFromBetterAuth} from '../auth.js';
-import {asyncRoute,err,clean} from '../shared.js';
+import {asyncRoute,err} from '../shared.js';
 
 export function registerAccountRoutes(app){
 app.post('/api/demo/register',asyncRoute(async(req,res)=>{
@@ -14,8 +14,14 @@ app.post('/api/demo/register',asyncRoute(async(req,res)=>{
 }));
 app.post('/api/demo/login',asyncRoute(async(req,res)=>{
  if(!DEMO_MODE)return err(res,'Demo login is disabled in production.',404);
- const email=clean(req.body?.email).toLowerCase(),password=req.body?.password||'';const user=await findOne('users',{email});
- if(!user||!await bcrypt.compare(password,user.passwordHash||''))return err(res,'Incorrect email or password.',401);
+ const {email, password} = req.body || {};
+ if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
+  return err(res, 'Incorrect email or password.', 401);
+ }
+ const user = await findOne('users', {email: email.trim().toLowerCase()});
+ if (!user || !await bcrypt.compare(password, user.passwordHash || '')) {
+  return err(res, 'Incorrect email or password.', 401);
+ }
  res.json({token:makeToken(user),user:safeUser(user)});
 }));
 app.post('/api/token',asyncRoute(tokenFromBetterAuth));
