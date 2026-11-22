@@ -11,6 +11,12 @@ const check=(condition,name)=>{assert(condition,name);console.log('PASS:',name);
 const health=await api('/api/health');check(health.status===200&&health.data.mode==='demo','Demo API health');
 const listings=await api('/api/tuitions?limit=20');check(listings.status===200&&listings.data.total>=12,'Twelve or more approved listings');
 const login=async(email)=>{const res=await api('/api/demo/login',{method:'POST',body:{email,password:'Demo12345!'}});check(res.status===200,'Sign in '+email);return res.data.token;};
+const badPassword=await api('/api/demo/login',{method:'POST',body:{email:'student@mentorlagbe.demo',password:{value:'invalid'}}});
+check(badPassword.status===401,'Malformed password returns a login error');
+const badPage=await api('/api/tuitions?page=1.5&limit=Infinity');
+check(badPage.status===200&&badPage.data.page===1&&badPage.data.items.length===9,'Invalid pagination uses defaults');
+const lastPage=await api('/api/tuitions?page=99999&limit=5');
+check(lastPage.status===200&&lastPage.data.page===lastPage.data.pages&&lastPage.data.items.length>0,'Out-of-range page falls back to the last page');
 const student=await login('student@mentorlagbe.demo');
 const tutor=await login('farhan@mentorlagbe.demo');
 const admin=await login('admin@mentorlagbe.demo');
@@ -22,7 +28,10 @@ const newUser=await api('/api/demo/register',{method:'POST',body:{name:'Smoke Te
 const newTutor=newUser.data.token;
 const template={title:'Smoke Test Full Stack Mathematics',subject:'Mathematics',classLevel:'HSC / Class 11–12',mode:'Online',location:'Dhaka',monthlyFee:3100,daysPerWeek:3,description:'This is a realistic and fully validated sample tuition record for smoke testing.',bannerImage:'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=900&q=80'};
 const posts=[];
-for(let i=0;i<2;i++){const r=await api('/api/tutor/tuitions',{method:'POST',token:newTutor,body:{...template,title:template.title+' '+i}});check(r.status===201,'Tutor creates pending listing '+i);posts.push(r.data.tuition.id);}
+const pendingSubject='Smoke Subject '+unique;
+for(let i=0;i<2;i++){const r=await api('/api/tutor/tuitions',{method:'POST',token:newTutor,body:{...template,title:template.title+' '+i,subject:i===1?pendingSubject:template.subject,classLevel:i===1?pendingSubject:template.classLevel}});check(r.status===201,'Tutor creates pending listing '+i);posts.push(r.data.tuition.id);}
+const filters=await api('/api/subjects');
+check(filters.status===200&&!filters.data.subjects.includes(pendingSubject)&&!filters.data.classLevels.includes(pendingSubject),'Pending tuitions do not appear in public filters');
 const tooMany=await api('/api/tutor/tuitions',{method:'POST',token:newTutor,body:{...template,title:template.title+' extra'}});check(tooMany.status===403,'Free plan enforces maximum 2 listings');
 const approval=await api('/api/admin/tuitions/'+posts[0],{method:'PATCH',token:admin,body:{approvalStatus:'approved'}});check(approval.status===200,'Admin approves tutor listing');
 const detail=await api('/api/tuitions/'+posts[0]);check(detail.status===200,'Approved tuition appears publicly');
