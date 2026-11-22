@@ -20,7 +20,16 @@ app.delete('/api/tutor/tuitions/:id',verifyToken,verifyTutor,asyncRoute(async(re
  const t=await findOne('tuitions',{id:req.params.id});if(!t||t.tutorEmail!==req.user.email)return err(res,'Listing not found.',404);
  await remove('tuitions',{id:t.id});res.json({success:true});
 }));
-app.get('/api/tutor/applicants',verifyToken,verifyTutor,asyncRoute(async(req,res)=>{const [applications,users]=await Promise.all([all('applications'),all('users')]);const items=applications.filter(a=>a.tutorEmail===req.user.email).map(a=>({...a,isPriority:users.find(u=>u.email===a.studentEmail)?.plan==='pro'})).sort((a,b)=>Number(b.isPriority)-Number(a.isPriority));res.json({items});}));
+app.get('/api/tutor/applicants',verifyToken,verifyTutor,asyncRoute(async(req,res)=>{
+ const [applications, users] = await Promise.all([all('applications'), all('users')]);
+ const proEmails = new Set(users.filter(user => user.plan === 'pro').map(user => user.email));
+ const items = applications
+  .filter(application => application.tutorEmail === req.user.email)
+  .map(application => ({...application, isPriority: proEmails.has(application.studentEmail)}))
+  .sort((a, b) => Number(b.isPriority) - Number(a.isPriority) ||
+   String(b.appliedAt ?? '').localeCompare(String(a.appliedAt ?? '')));
+ res.json({items});
+}));
 app.patch('/api/tutor/applicants/:id',verifyToken,verifyTutor,asyncRoute(async(req,res)=>{
  if(!['accepted','rejected'].includes(req.body?.status))return err(res,'Invalid application status.');const a=await findOne('applications',{id:req.params.id});if(!a||a.tutorEmail!==req.user.email)return err(res,'Application not found.',404);
  res.json({application:await update('applications',{id:a.id},{status:req.body.status})});
