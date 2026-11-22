@@ -1,0 +1,9 @@
+import 'dotenv/config';
+import {connectData,DEMO_MODE,all,insert,findOne} from '../src/data.js';
+if(DEMO_MODE){console.log('Demo data is created automatically the first time you start the server.');process.exit(0);}
+if(process.env.ALLOW_SAMPLE_DATA!=='true')throw new Error('Set ALLOW_SAMPLE_DATA=true to explicitly seed sample listings.');
+await connectData();
+const tutors=(await all('users')).filter(u=>u.role==='tutor');if(!tutors.length)throw new Error('Please register one or more tutor accounts first.');
+const entries=[['HSC Mathematics Revision','Mathematics'],['IELTS Speaking Practice','IELTS'],['Physics Exam Preparation','Physics'],['Beginner Python Programming','Programming'],['SSC English Masterclass','English'],['Organic Chemistry Fundamentals','Chemistry'],['Biology & Human Anatomy','Biology'],['Class 8 Mathematics','Mathematics'],['React Frontend Bootcamp','Programming'],['English Speaking Confidence','English'],['Accounting Principles','Accounting'],['University Math Admission','Mathematics']];
+for(let i=0;i<entries.length;i++){const title=entries[i][0];if(await findOne('tuitions',{title}))continue;const tutor=tutors[i%tutors.length];await insert('tuitions',{title,subject:entries[i][1],classLevel:i%3===0?'Class 9–10':i%3===1?'HSC / Class 11–12':'University / Adult',mode:i%4===0?'Offline':'Online',location:'Dhaka, Bangladesh',monthlyFee:2500+(i*350),daysPerWeek:3,bannerImage:'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=900&q=80',description:'Dedicated subject mentorship with a weekly learning plan, practical exercises, individual feedback, and regular progress checks.',tutorId:tutor.id,tutorName:tutor.name,tutorEmail:tutor.email,approvalStatus:'approved',isActive:true,createdAt:new Date(Date.now()-i*3600000).toISOString()});}
+console.log('Sample tuition listings seeded.');process.exit(0);
